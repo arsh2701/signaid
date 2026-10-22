@@ -25,13 +25,14 @@ const CONFIG = {
   
   // Firebase Realtime Database Configuration (Multi-Device Sync)
   FIREBASE_CONFIG: {
-    apiKey: "YOUR_FIREBASE_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBpY0q5ViyRxtAzKCCJ_b2I8GNV1fuhy2g",
+  authDomain: "signaid-2564b.firebaseapp.com",
+  databaseURL: "https://signaid-2564b-default-rtdb.firebaseio.com",
+  projectId: "signaid-2564b",
+  storageBucket: "signaid-2564b.firebasestorage.app",
+  messagingSenderId: "172535393865",
+  appId: "1:172535393865:web:5f400f7722f65bfd28d998",
+  measurementId: "G-HKM9RCCNS4"
   },
 
   // MediaPipe Gesture Recognition Assets (Pinned Versions)
