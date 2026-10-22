@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-colorblind="none">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SignAid AI - Inclusive Classroom Real-Time Captioning, Sound Intelligence, and AI Comprehension Assistant for Deaf and Hard-of-Hearing Students.">
+  <title>SignAid AI | Inclusive Classroom Real-Time Captioning Assistant</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <!-- Firebase Modular Compat SDK (Pinned v10.13.0) -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+  <!-- Screen Reader Live Announcements (WCAG Certified) -->
+  <div id="accessibilityLiveRegion" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="accessibilityAlertsRegion" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+  <!-- Browser / Protocol Notice Banners -->
+  <div id="fileProtocolNotice" class="system-banner warning hidden" role="status">
+    <span>💡 <strong>Tip for Demo:</strong> For live Web Speech Recognition and Web Audio API, run this project on a local server (e.g., VS Code Live Server at <code>http://localhost:5500</code>). In offline file mode, use <strong>Demo Mode</strong> below!</span>
+  </div>
+
+  <div id="browserCompatibilityNotice" class="system-banner hidden" role="status">
+    <span>ℹ️ For optimal continuous Speech-to-Text performance, Google Chrome is recommended.</span>
+  </div>
+
+  <div id="speechApiUnsupportedNotice" class="system-banner warning hidden" role="alert">
+    <span>⚠️ Speech Recognition API is unavailable in this browser. Please click <strong>Demo Mode</strong> to simulate live captioning!</span>
+  </div>
+
+  <!-- Multi-Device Firebase / Broadcast Fallback Banner -->
+  <div id="firebaseFallbackBanner" class="system-banner warning hidden" role="status">
+    <span id="firebaseFallbackText">⚠️ Running in Local Fallback Mode (BroadcastChannel). Multi-device sync requires Firebase credentials in config.js.</span>
+  </div>
+
+  <!-- Class Ended Alert Banner -->
+  <div id="classEndedAlertBanner" class="system-banner hidden" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4);" role="status">
+    <span>🎓 <strong>Class has concluded!</strong> The instructor ended the session. Your AI Study Kit has been generated below.</span>
+  </div>
+
+  <!-- Loud Sound Visual Banner Flash Notification -->
+  <div id="soundAlertBanner" class="sound-alert-banner" role="alert" aria-live="assertive">
+    <span id="soundAlertLabel">🚨 Loud sound detected</span>
+  </div>
+
+  <!-- Global System Toast Notifications -->
+  <div id="systemNotificationToast" class="toast-notice" role="status"></div>
+
+  <!-- ==========================================================================
+       Sticky Navigation Bar
+       ========================================================================== -->
+  <header class="navbar" role="banner">
+    <div class="nav-container">
+      <a href="#" class="nav-brand" aria-label="SignAid AI Home">
+        <div class="brand-icon" aria-hidden="true">⚡</div>
+        <div class="brand-title-wrap">
+          <span class="brand-text">SignAid</span>
+          <span class="brand-badge">Classroom AI</span>
+        </div>
+      </a>
+
+      <nav aria-label="Main Navigation">
+        <ul class="nav-links" id="navLinksContainer">
+          <li><a href="#videoMeetingSection" class="nav-link" onclick="SignAid.VideoMeeting.startMeeting();" style="color: var(--accent-cyan); font-weight: 700;">Live Video 📹</a></li>
+          <li><a href="#classroom" class="nav-link">Live Classroom</a></li>
+          <li><a href="#studykit" class="nav-link">Study Kit</a></li>
+          <li><a href="#sync-section" class="nav-link">Teacher Sync</a></li>
+          <li><a href="#sign-beta" class="nav-link">Sign Beta 🤟</a></li>
+          <li><a href="#features" class="nav-link">Features</a></li>
+          <li><a href="#impact" class="nav-link">Impact</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <!-- Live Connection Status Badge -->
+        <div id="networkConnectionBadge" class="connection-badge online" title="Multi-device Classroom Sync Status">
+          <span class="dot connected"></span> Connected
+        </div>
+
+        <!-- Class Group Chat Trigger -->
+        <button id="openClassChatBtn" class="btn btn-secondary btn-sm" title="Open Class Group Chat (Real-time with Teacher & Students)">
+          💬 Class Chat <span id="classChatUnreadBadge" class="chat-unread-badge hidden">0</span>
+        </button>
+
+        <!-- Teacher: Join Requests Quick Action Button -->
+        <button id="openJoinRequestsBtn" class="btn btn-secondary btn-sm teacher-only" title="View Classroom Join Requests" aria-label="Classroom Join Requests">
+          📥 Requests <span id="joinRequestsBadge" class="pending-badge hidden">0</span>
+        </button>
+
+        <!-- Teacher: Approved Students Quick Action Button -->
+        <button id="openApprovedStudentsBtn" class="btn btn-secondary btn-sm teacher-only" title="View Enrolled Students" aria-label="Enrolled Students">
+          👥 Students (<span id="approvedStudentsCountDisplay">0</span>)
+        </button>
+
+        <!-- Current User Role & Name Badge -->
+        <div id="navbarUserBadgeContainer" class="user-badge-container hidden">
+          <span id="navbarUserBadgeText" class="user-badge-name">User</span>
+          <span id="navbarUserRolePill" class="role-badge student">Student</span>
+          <span id="studentApprovalStatusPill" class="status-badge hidden"></span>
+          <button id="navbarLogoutBtn" class="btn-logout" title="Switch User or Class">Exit</button>
+        </div>
+
+        <!-- Live Video Room Quick Access Button -->
+        <button id="navVideoRoomBtn" class="btn btn-primary btn-sm" onclick="SignAid.VideoMeeting.startMeeting();" title="Start / Join Live Video Meeting" aria-label="Live Video Meeting Room" style="background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+          📹 Video Room
+        </button>
+
+        <!-- Quick Timeline Rewind Button -->
+        <button id="openTimelineBtn" class="btn-icon" title="Rewind & Replay Timeline (T)" aria-label="Rewind & Replay Timeline">
+          ⏱️
+        </button>
+
+        <!-- Keyboard Shortcuts Help -->
+        <button id="openShortcutsBtn" class="btn-icon" title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts">
+          ⌨️
+        </button>
+
+        <!-- Accessibility Settings Modal Trigger -->
+        <button id="openSettingsModalBtn" class="btn-icon" title="Accessibility & Display Settings" aria-label="Accessibility Settings">
+          ⚙️
+        </button>
+
+        <!-- Quick Theme Switcher -->
+        <button id="quickThemeToggle" class="theme-toggle-btn" title="Toggle Light / Dark / High-Contrast Theme" aria-label="Toggle Theme">
+          🌓
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       Login & Role Selection Landing Screen (Teacher vs Student)
+       ========================================================================== -->
+  <div id="loginLandingModal" class="login-landing-modal" role="dialog" aria-labelledby="loginTitle" aria-modal="true">
+    <div class="login-card">
+      <div class="login-brand-icon">⚡</div>
+      <h2 id="loginTitle" style="font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 0.35rem;">
+        Welcome to SignAid
+      </h2>
+      <p style="color: var(--text-secondary); font-size: 0.92rem;">
+        The inclusive classroom accessibility assistant with real-time captions &amp; multi-user sync.
+      </p>
+
+      <!-- Role Selection Tabs -->
+      <div class="login-role-tabs" role="tablist">
+        <button id="loginTabTeacherBtn" class="login-tab-btn active" role="tab" aria-selected="true">
+          👨‍🏫 Continue as Teacher
+        </button>
+        <button id="loginTabStudentBtn" class="login-tab-btn" role="tab" aria-selected="false">
+          🎓 Continue as Student
+        </button>
+      </div>
+
+      <!-- Error message container -->
+      <div id="loginErrorMessage" class="login-error-msg hidden" role="alert"></div>
+
+      <!-- Teacher Form: Name + Create Class -->
+      <form id="loginTeacherForm" class="login-form">
+        <div class="login-input-group">
+          <label for="teacherNameInput" class="login-label">Instructor Name / Title</label>
+          <input type="text" id="teacherNameInput" class="login-input" placeholder="e.g. Prof. Ananya Sharma" required autocomplete="name">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.05rem; padding: 0.85rem;">
+          ✨ Create Class Session
+        </button>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.75rem;">
+          Generates a unique 6-character code (e.g. A7K29X) to invite students.
+        </p>
+      </form>
+
+      <!-- Student Form: Name + Class Code -->
+      <form id="loginStudentForm" class="login-form hidden">
+        <div class="login-input-group">
+          <label for="studentNameInput" class="login-label">Your Name</label>
+          <input type="text" id="studentNameInput" class="login-input" placeholder="e.g. Rahul Verma" required autocomplete="name">
+        </div>
+
+        <div class="login-input-group">
+          <label for="studentEmailInput" class="login-label">Student Email Address</label>
+          <input type="email" id="studentEmailInput" class="login-input" placeholder="e.g. rahul@student.edu" autocomplete="email">
+        </div>
+
+        <div class="login-input-group">
+          <label for="studentCodeInput" class="login-label">Class Code</label>
+          <input type="text" id="studentCodeInput" class="login-input code-input" placeholder="e.g. A7K29X" maxlength="8">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.05rem; padding: 0.85rem;">
+          🚀 Join Class
+        </button>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.75rem;">
+          Enter your 6-character class code to send a join request to the instructor.
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Class Created Confirmation Modal (For Teacher) -->
+  <div id="classCreatedModal" class="login-landing-modal" role="dialog" aria-labelledby="createdModalTitle" aria-modal="true">
+    <div class="login-card" style="max-width: 460px;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🎉</div>
+      <h3 id="createdModalTitle" style="font-size: 1.4rem; font-weight: 800; color: #fff;">Class Created!</h3>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0.4rem 0 1.25rem;">
+        Share this code with your students to join on their laptops or mobile phones:
+      </p>
+
+      <div style="background: var(--bg-tertiary); border: 2px dashed var(--accent-cyan); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1.25rem;">
+        <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-cyan); font-weight: 700; display: block; margin-bottom: 4px;">CLASS CODE</span>
+        <div id="createdClassCodeDisplay" style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; letter-spacing: 0.15em; color: #fff;">A7K29X</div>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem;">
+        <button id="copyCreatedCodeBtn" class="btn btn-primary" style="flex: 1;">Copy Code</button>
+        <button id="closeCreatedClassModalBtn" class="btn btn-secondary" style="flex: 1;">Enter Classroom</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Student "Enter Class Code" Modal
+       ========================================================================== -->
+  <div id="studentEnterCodeModal" class="login-landing-modal" role="dialog" aria-labelledby="enterCodeTitle" aria-modal="true">
+    <div class="login-card" style="max-width: 480px;">
+      <div class="login-brand-icon">🎓</div>
+      <h2 id="enterCodeTitle" style="font-size: 1.5rem; font-weight: 800; color: #fff; margin-bottom: 0.35rem;">
+        Join Classroom
+      </h2>
+      <p style="color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 1.25rem;">
+        Enter the 6-character code given by your teacher to request classroom access.
+      </p>
+
+      <div id="studentEnterCodeErrorBox" class="login-error-msg hidden" role="alert"></div>
+
+      <form id="studentEnterCodeForm">
+        <div class="login-input-group">
+          <label for="studentStandaloneCodeInput" class="login-label">6-Character Class Code</label>
+          <input type="text" id="studentStandaloneCodeInput" class="login-input code-input" placeholder="e.g. A7K29X" maxlength="6" required autocomplete="off">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.05rem; padding: 0.85rem;">
+          🚀 Request to Join Class
+        </button>
+      </form>
+      <div style="margin-top: 1rem;">
+        <button class="btn btn-secondary btn-sm" onclick="AuthManager.clearSession();" style="font-size: 0.82rem;">
+          ← Switch User Account
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Student "Waiting for Teacher Approval" Modal / Card
+       ========================================================================== -->
+  <div id="studentWaitingApprovalModal" class="login-landing-modal" role="dialog" aria-labelledby="waitingApprovalTitle" aria-modal="true">
+    <div class="login-card" style="max-width: 500px;">
+      <!-- Active Waiting Content -->
+      <div id="studentWaitingActiveContent">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem; animation: pendingPulse 2s infinite;">⏳</div>
+        <h2 id="waitingApprovalTitle" style="font-size: 1.5rem; font-weight: 800; color: #fff; margin-bottom: 0.35rem;">
+          Waiting for Teacher Approval
+        </h2>
+        <div style="margin: 0.75rem 0;">
+          <span class="status-badge pending" style="font-size: 0.92rem; padding: 4px 14px; font-weight: 700;">
+            ⏳ Status: Pending Teacher Approval
+          </span>
+        </div>
+
+        <div style="background: var(--bg-tertiary); border: 2px dashed rgba(56, 189, 248, 0.4); border-radius: var(--radius-lg); padding: 1rem; margin: 1.25rem 0;">
+          <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-cyan); font-weight: 700; display: block; margin-bottom: 4px;">REQUESTED CLASSROOM</span>
+          <div id="waitingClassCodeDisplay" style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; letter-spacing: 0.15em; color: #fff;">------</div>
+          <div id="waitingStudentInfoDisplay" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 6px;">Student Info</div>
+        </div>
+
+        <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">
+          Your request has been delivered in real time to the teacher. Live captions and classroom features will automatically unlock the moment you are accepted.
+        </p>
+
+        <button id="studentCancelWaitBtn" class="btn btn-secondary btn-sm" style="margin-top: 1.25rem;">
+          Cancel Request &amp; Try Another Code
+        </button>
+      </div>
+
+      <!-- Rejection Notice (Shown if teacher rejects) -->
+      <div id="studentRejectionNoticeContainer" class="hidden">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">❌</div>
+        <h3 style="font-size: 1.4rem; font-weight: 800; color: #fda4af; margin-bottom: 0.5rem;">
+          Request Not Approved
+        </h3>
+        <p id="studentRejectionNoticeText" style="color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 1.25rem; line-height: 1.5;">
+          The instructor did not approve your request to join this classroom.
+        </p>
+        <button id="studentTryAnotherCodeBtn" class="btn btn-primary" style="width: 100%;">
+          Try Another Class Code
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Teacher Join Requests Modal
+       ========================================================================== -->
+  <div id="joinRequestsModal" class="login-landing-modal" role="dialog" aria-labelledby="joinRequestsTitle" aria-modal="true">
+    <div class="login-card" style="max-width: 650px; text-align: left;">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+        <div>
+          <h3 id="joinRequestsTitle" style="font-size: 1.35rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px;">
+            📥 Join Requests
+          </h3>
+          <span id="joinRequestsModalSubtitle" style="font-size: 0.84rem; color: var(--text-secondary);">Manage incoming student requests</span>
+        </div>
+        <button id="closeJoinRequestsModalBtn" class="btn-icon" style="width: 34px; height: 34px;" title="Close">&times;</button>
+      </div>
+
+      <div id="joinRequestsListContainer" style="max-height: 380px; overflow-y: auto;">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Teacher Approved Students Roster Modal
+       ========================================================================== -->
+  <div id="approvedStudentsModal" class="login-landing-modal" role="dialog" aria-labelledby="approvedStudentsTitle" aria-modal="true">
+    <div class="login-card" style="max-width: 700px; text-align: left;">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+        <div>
+          <h3 id="approvedStudentsTitle" style="font-size: 1.35rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px;">
+            👥 Enrolled Students
+          </h3>
+          <span id="approvedStudentsModalSubtitle" style="font-size: 0.84rem; color: var(--text-secondary);">Active students with live caption access</span>
+        </div>
+        <button id="closeApprovedStudentsModalBtn" class="btn-icon" style="width: 34px; height: 34px;" title="Close">&times;</button>
+      </div>
+
+      <div id="approvedStudentsListContainer" style="max-height: 380px; overflow-y: auto;">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+  </div>
+
+  <main id="main-content">
+    <!-- ==========================================================================
+         Hero Section
+         ========================================================================== -->
+    <section class="hero-section" aria-labelledby="hero-title">
+      <div class="hero-bg-glow" aria-hidden="true"></div>
+      
+      <div class="hero-pill">
+        <span>🏆 Hackathon Accessibility Innovation</span>
+        <span>•</span>
+        <span>WCAG AA+ Compliant</span>
+      </div>
+
+      <h1 id="hero-title" class="hero-title">
+        Real-Time Captions &amp; AI Comprehension for <span class="gradient-text">Hearing-Impaired</span> Students
+      </h1>
+
+      <p class="hero-subtitle">
+        Bridging the classroom gap with continuous speech-to-text, acoustic sound intelligence, instant <em>"I Missed That"</em> simplifications, and post-class study kits.
+      </p>
+
+      <div class="hero-cta-group">
+        <button id="launchVideoMeetingBtn" class="btn btn-primary" style="background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); font-size: 1.05rem; padding: 0.85rem 1.6rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+          </svg>
+          <span>Join Live Video Classroom</span>
+        </button>
+
+        <a href="#classroom" class="btn btn-secondary" onclick="if(window.CaptionsEngine) window.CaptionsEngine.start();">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+          <span>Start Live Microphone</span>
+        </a>
+
+        <button id="toggleDemoModeBtn" class="btn btn-demo">
+          <span>🎬 Play Demo Mode (No Mic Needed)</span>
+        </button>
+
+        <button id="heroMissedBtn" class="btn btn-missed" onclick="if(window.MissedThat) window.MissedThat.handleMissedThat();">
+          <span>⚡ "I Missed That!"</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         Live Classroom Video Meeting Room (Google Meet Style with Real-Time Subtitles)
+         ========================================================================== -->
+    <section id="videoMeetingSection" class="video-meeting-section hidden" aria-labelledby="videoMeetingHeading">
+      <div class="meeting-room-frame">
+        <!-- Meeting Header Bar -->
+        <div class="meeting-header-bar">
+          <div class="meeting-title-group">
+            <span class="meeting-live-badge"><span class="live-dot"></span> LIVE CLASSROOM CALL</span>
+            <h2 id="videoMeetingHeading" style="font-size: 1.15rem; font-weight: 700; color: #fff;">
+              CS-101: Data Structures &amp; Algorithms Lecture
+            </h2>
+            <span id="meetingTimerDisplay" class="meeting-timer-pill">00:00</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <button id="meetingPipBtn" class="btn-icon" style="width: 34px; height: 34px;" title="Picture in Picture Mode" aria-label="Picture in Picture">🪟</button>
+            <button id="leaveVideoMeetingBtn" class="btn-leave-call">
+              <span>Leave Call</span> ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Video Stage Area -->
+        <div class="meeting-stage-container">
+          <div id="videoStageFrame" class="video-stage-frame">
+            <!-- Screen Share Active Banner -->
+            <div id="screenShareActiveBadge" class="presentation-pill hidden">
+              <span>🖥️</span> <span>Screen Sharing Active (Slides Presentation)</span>
+            </div>
+
+            <!-- Acoustic Alert HUD on Video -->
+            <div id="videoMeetingSoundHud" class="video-alert-hud" role="alert">
+              <span id="videoSoundHudLabel">🚨 Loud sound detected</span>
+            </div>
+
+            <!-- Quick "I Missed That" on Video Stage -->
+            <button id="meetingMissedThatBtn" class="video-floating-missed-btn" title="Tap if teacher spoke too fast">
+              <span>⚡ "I Missed That" (Press M)</span>
+            </button>
+
+            <!-- Main Video Element -->
+            <video id="meetingMainVideo" class="video-element-main" autoplay playsinline muted></video>
+
+            <!-- Fallback Avatar Placeholder when Camera is Off -->
+            <div id="mainVideoAvatarPlaceholder" class="hidden" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b1120;">
+              <div style="width: 90px; height: 90px; border-radius: 50%; background: var(--gradient-brand); color: #fff; font-size: 2.5rem; display: flex; align-items: center; justify-content: center; font-weight: 800; box-shadow: var(--shadow-glow); margin-bottom: 0.75rem;">
+                👨‍🏫
+              </div>
+              <h3 style="color: #fff; font-size: 1.25rem;">Prof. Ananya Sharma</h3>
+              <p style="color: var(--text-muted); font-size: 0.88rem;">Camera muted &bull; Audio active &bull; Live captions flowing</p>
+            </div>
+
+            <!-- Picture in Picture Tiles Cluster -->
+            <div class="pip-tiles-cluster">
+              <!-- Local Student Camera Tile -->
+              <div class="pip-video-tile">
+                <video id="meetingLocalPipVideo" class="pip-video-element" autoplay playsinline muted></video>
+                <span class="pip-tile-label">You (Student)</span>
+              </div>
+
+              <!-- Remote Peer Student Tile (WebRTC Cross-Tab) -->
+              <div id="meetingRemoteParticipantTile" class="pip-video-tile hidden">
+                <video id="meetingRemotePeerVideo" class="pip-video-element" autoplay playsinline></video>
+                <span class="pip-tile-label">Remote Peer</span>
+              </div>
+
+              <!-- Sign Language Interpreter PIP Tile -->
+              <div id="videoSignLanguagePip" class="sign-pip-container hidden">
+                <canvas id="meetingSignPipCanvas" class="sign-pip-canvas"></canvas>
+                <span class="sign-pip-badge">🤟 ASL/ISL Interpreter (AI)</span>
+              </div>
+            </div>
+
+            <!-- ==========================================================================
+                 Live Closed Captions (CC) Overlay directly on Video
+                 ========================================================================== -->
+            <div id="videoCcSubtitleOverlay" class="video-cc-overlay-bar" role="region" aria-label="Video Meeting Live Closed Captions">
+              <div class="video-cc-header">
+                <span id="videoCcSpeakerLabel" class="video-speaker-tag">
+                  🎙️ Prof. Sharma [Teacher]
+                </span>
+                <span style="font-size: 0.72rem; color: #94a3b8; font-family: var(--font-mono);">Live Subtitles Overlay</span>
+              </div>
+              <div id="videoCcTextDisplay" class="video-cc-text">
+                <span class="video-interim">Waiting for classroom dialogue... Press mic or demo mode to stream captions!</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Meeting Side Drawer (Participants & Meeting Chat) -->
+          <aside id="meetingSideDrawer" class="meeting-side-drawer">
+            <div class="drawer-header">
+              <h4 style="font-size: 0.95rem; font-weight: 700; color: #fff;">👥 Meeting Participants (4)</h4>
+              <button onclick="document.getElementById('meetingSideDrawer').classList.remove('open');" class="btn-icon" style="width: 28px; height: 28px;">✕</button>
+            </div>
+            <div class="drawer-body">
+              <div id="meetingParticipantsList"></div>
+
+              <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <h5 style="font-size: 0.82rem; text-transform: uppercase; color: var(--accent-cyan); margin-bottom: 0.4rem;">Accessibility Status</h5>
+                <p style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4;">
+                  Real-time Web Speech recognition &amp; acoustic sensory monitors active.
+                </p>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- Meeting Control Toolbar (Google Meet Style) -->
+        <div class="meeting-control-toolbar">
+          <div class="meeting-control-group">
+            <button id="meetingToggleMicBtn" class="btn-meeting-ctrl active">
+              🎤 Mic On
+            </button>
+            <button id="meetingToggleCamBtn" class="btn-meeting-ctrl active">
+              📹 Camera On
+            </button>
+            <button id="meetingScreenShareBtn" class="btn-meeting-ctrl">
+              🖥️ Share Screen
+            </button>
+          </div>
+
+          <div class="meeting-control-group">
+            <button id="meetingToggleCcBtn" class="btn-meeting-ctrl active" title="Toggle Live Subtitles Overlay on Video">
+              💬 Subtitles (CC)
+            </button>
+            <button id="meetingToggleSignPipBtn" class="btn-meeting-ctrl" title="Toggle Sign Language Interpreter PIP Window">
+              🤟 Sign PIP
+            </button>
+            <button id="meetingToggleDrawerBtn" class="btn-meeting-ctrl" title="View Class Participants">
+              👥 Classmates (4)
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         Live Classroom Workspace
+         ========================================================================== -->
+    <section id="classroom" class="classroom-section" aria-labelledby="classroom-heading">
+      <div class="classroom-grid">
+
+        <!-- Left: Live Captions Console -->
+        <div class="glass-card caption-console-card">
+          <!-- Console Header -->
+          <div class="caption-console-header">
+            <div class="status-cluster">
+              <div id="liveStatusIndicator" class="status-pill idle">
+                <span class="pulse-dot idle"></span> STANDBY
+              </div>
+
+              <!-- Audio Waveform Visualizer -->
+              <div class="audio-waveform-bars" id="audioWaveform" title="Microphone Activity" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+
+              <!-- Live Volume / Decibel Gauge -->
+              <div class="sound-meter-wrapper" title="Real-time Classroom Sound Level">
+                <span id="teacherSpeakingStatus" class="status-badge off">Mic Off</span>
+                <div class="meter-track">
+                  <div id="volumeMeterBar" class="meter-fill idle"></div>
+                </div>
+                <span id="volumeMeterValue" style="font-family: var(--font-mono); font-size: 0.75rem;">0 dB</span>
+              </div>
+            </div>
+
+            <!-- Language & Hinglish Controls -->
+            <div class="toolbar-group">
+              <label for="captionLanguageSelect" class="sr-only">Speech Recognition Language</label>
+              <select id="captionLanguageSelect" class="select-custom" title="Select Input Speech Language">
+                <option value="en-IN">English (India)</option>
+                <option value="hi-IN">Hindi (हिंदी)</option>
+                <option value="pa-IN">Punjabi (ਪੰਜਾਬੀ)</option>
+                <option value="en-US">English (US)</option>
+              </select>
+
+              <!-- Hinglish Mode Switch -->
+              <label class="switch-container" title="Transliterate Hindi text into Roman script (Hinglish)" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
+                <input type="checkbox" id="hinglishToggle" style="accent-color: var(--accent-cyan); cursor: pointer;">
+                <span>Hinglish Mode</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Teacher Classroom Access & Code Control Card -->
+          <div class="teacher-only teacher-class-control-card" style="background: var(--bg-tertiary); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
+              <div>
+                <span style="font-size: 0.72rem; text-transform: uppercase; color: var(--accent-cyan); font-weight: 800; letter-spacing: 0.05em; display: block;">CLASS CODE</span>
+                <span id="teacherDashboardCodeDisplay" style="font-family: var(--font-mono); font-size: 1.45rem; font-weight: 800; color: #fff; letter-spacing: 0.12em;">------</span>
+              </div>
+              <span id="teacherCodeStatusPill" class="status-badge active">🟢 Active</span>
+            </div>
+
+            <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+              <button id="teacherDashboardCopyCodeBtn" class="btn btn-primary btn-sm" title="Copy Class Code to Clipboard">
+                📋 Copy Code
+              </button>
+              <button id="teacherRegenerateCodeBtn" class="btn btn-secondary btn-sm" title="Generate a new 6-character code">
+                🔄 Regenerate
+              </button>
+              <button id="teacherToggleCodeActiveBtn" class="btn btn-secondary btn-sm" title="Disable/Enable joining with this code">
+                🔒 Disable Code
+              </button>
+            </div>
+          </div>
+
+          <!-- Controls Toolbar -->
+          <div class="caption-toolbar">
+            <div class="toolbar-group">
+              <button id="startCaptionsBtn" class="btn btn-primary btn-sm teacher-only">
+                ▶ Start Captions
+              </button>
+              <button id="stopCaptionsBtn" class="btn btn-secondary btn-sm teacher-only" disabled>
+                ⏹ Pause
+              </button>
+              <button id="clearCaptionsBtn" class="btn btn-secondary btn-sm teacher-only" title="Clear transcript">
+                🗑️ Clear
+              </button>
+              <button id="downloadCaptionsBtn" class="btn btn-secondary btn-sm" title="Download text transcript">
+                💾 Export .txt
+              </button>
+
+              <!-- Student Only Interactive Buttons -->
+              <button id="studentRaiseHandBtn" class="btn btn-primary btn-sm student-only" title="Raise hand to ask question">
+                ✋ Raise Hand
+              </button>
+              <button id="studentSlowDownBtn" class="btn btn-secondary btn-sm student-only" title="Anonymously signal teacher to slow down">
+                🐢 Slow Down / Repeat
+              </button>
+
+              <!-- Teacher Quick Interactivity -->
+              <button id="teacherLaunchQuickPollBtn" class="btn btn-sm btn-secondary teacher-only" title="Ask students if they understood">
+                📊 Check-In Poll
+              </button>
+              <button id="teacherEndClassBtn" class="btn btn-sm btn-danger teacher-only" title="End session and trigger study kit for students">
+                🎓 End Class
+              </button>
+            </div>
+
+            <div class="toolbar-group">
+              <!-- Filter Starred Bookmarks Only -->
+              <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
+                <input type="checkbox" id="filterBookmarksToggle" style="accent-color: var(--accent-amber); cursor: pointer;">
+                <span>★ Starred Only</span>
+              </label>
+
+              <!-- Demo Lecture Selection -->
+              <label for="demoLectureSelect" class="sr-only">Select Demo Lecture</label>
+              <select id="demoLectureSelect" class="select-custom" style="padding: 0.35rem 0.65rem; font-size: 0.82rem;">
+                <option value="cs">Lecture: CS &amp; Big-O</option>
+                <option value="physics">Lecture: Physics &amp; Motion</option>
+                <option value="hindi_demo">Lecture: Hindi / Hinglish</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Teacher Pin Announcement Form (Collapsible in toolbar) -->
+          <div class="teacher-only" style="padding: 0.6rem 0; border-bottom: 1px solid var(--border-color);">
+            <form id="teacherPinMessageForm" style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="text" id="teacherPinInput" placeholder="📌 Pin an important announcement or formula for students..." class="login-input" style="padding: 0.45rem 0.85rem; font-size: 0.85rem;">
+              <button type="submit" class="btn btn-sm btn-secondary" style="white-space: nowrap;">Pin to Top</button>
+            </form>
+          </div>
+
+          <!-- Teacher Alert: 3+ Students Requested Slow Down -->
+          <div id="teacherSlowDownAlert" class="slow-down-alert-banner hidden teacher-only" role="alert">
+            <span style="font-size: 1.4rem;">⚠️</span>
+            <div>
+              <strong>Classroom Pace Alert:</strong> <span id="teacherSlowDownCount">0</span> students sent an anonymous signal asking you to slow down or repeat the last point!
+            </div>
+          </div>
+
+          <!-- Student Mode Sync Announcement Notice (when in student broadcast mode) -->
+          <div id="studentModeNotice" class="system-banner hidden" style="margin-top: 0.75rem; border-radius: var(--radius-sm);">
+            <span>📡 <strong>Connected to Teacher Broadcast:</strong> Captions and sound alerts are streaming live from room <strong id="currentRoomCodeDisplay">CS-101</strong>.</span>
+          </div>
+
+          <!-- Demo Mode Active Notice -->
+          <div id="demoModeActiveBadge" class="system-banner hidden" style="background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); border-color: rgba(168, 85, 247, 0.3); margin-top: 0.75rem; border-radius: var(--radius-sm);">
+            <span>🎬 <strong>Demo Mode Active:</strong> Simulating live speech stream with keyword tagging and sound alerts.</span>
+          </div>
+
+          <!-- Pinned Announcement Banner (Visible to all students & teacher) -->
+          <div id="pinnedAnnouncementBanner" class="pinned-announcement-banner hidden" role="region" aria-label="Pinned Teacher Announcement">
+            <span id="pinnedAnnouncementText">📌 Pinned Message</span>
+            <button id="teacherUnpinBtn" class="teacher-only btn btn-sm btn-secondary" style="padding: 2px 8px; font-size: 0.75rem;">Unpin ✕</button>
+          </div>
+
+          <!-- Captions Streaming Area (ARIA Live Region) -->
+          <div id="captionStreamContainer" class="caption-stream-viewport" role="log" aria-live="polite" aria-label="Live Classroom Captions Stream">
+            <div class="empty-caption-state" id="emptyCaptionState">
+              <div class="empty-icon" aria-hidden="true">🎙️</div>
+              <h3>Captions will appear here in real-time</h3>
+              <p>Press <strong>Start Captions</strong>, choose your language, or click <strong>Demo Mode</strong> to experience the live stream.</p>
+            </div>
+            <div id="captionInterimSlot" class="caption-interim-slot"></div>
+          </div>
+        </div>
+
+        <!-- Right: "I Missed That" & Class Pulse Dashboard -->
+        <aside class="classroom-sidebar" aria-label="Classroom Insights and Quick Actions">
+          <!-- Big "I Missed That" Card -->
+          <div class="glass-card missed-that-hero-card">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.35rem;">Did the teacher speak too fast?</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.1rem;">
+              Tap to isolate the last 45 seconds of speech. SignAid AI will re-explain it simply with a real-world example.
+            </p>
+            <button id="missedThatBtn" class="btn btn-missed" style="width: 100%;" aria-haspopup="dialog">
+              ⚡ "I Missed That!" (Press M)
+            </button>
+          </div>
+
+          <!-- Raised Hands Alerts Card (Teacher & Student) -->
+          <div class="glass-card" style="border-color: rgba(245, 158, 11, 0.35);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+              <h3 style="font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <span>✋ Raised Hands</span>
+              </h3>
+              <span id="handRaiseNotificationBadge" class="pulse-badge warning hidden">0 ✋</span>
+            </div>
+            <div id="raisedHandsContainer">
+              <div class="empty-hands-msg" style="font-size: 0.85rem; color: var(--text-muted);">No active hand raises.</div>
+            </div>
+          </div>
+
+          <!-- Connected Students List Card -->
+          <div class="glass-card">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+              <h3 style="font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <span>👥 Connected Class</span>
+              </h3>
+              <span id="onlineStudentCountDisplay" class="role-badge student" style="font-size: 0.75rem;">1 Online</span>
+            </div>
+            <div id="onlineStudentsListContainer" style="display: flex; flex-wrap: wrap; gap: 4px; max-height: 120px; overflow-y: auto;">
+              <span class="empty-list-notice" style="font-size: 0.82rem; color: var(--text-muted);">Waiting for students to join...</span>
+            </div>
+          </div>
+
+          <!-- Class Pulse Dashboard -->
+          <div class="glass-card">
+            <h3 style="font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
+              <span>📊 Class Pulse</span>
+              <span id="pulseTalkTime" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-cyan);">00:00</span>
+            </h3>
+
+            <!-- Pulse Stats Grid -->
+            <div class="pulse-stat-grid">
+              <div class="pulse-stat-card">
+                <div class="stat-label">Teacher Speed</div>
+                <div id="pulseWpmValue" class="stat-number">0</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">Words / Min</div>
+              </div>
+
+              <div class="pulse-stat-card">
+                <div class="stat-label">Bookmarked</div>
+                <div id="pulseBookmarksCount" class="stat-number">0</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">Starred Moments</div>
+              </div>
+            </div>
+
+            <div style="margin-top: 0.75rem; text-align: center;">
+              <span id="pulseWpmWarningBadge" class="pulse-badge calm">• Waiting for speech...</span>
+            </div>
+
+            <!-- Smart Keywords Cloud -->
+            <div style="margin-top: 1.25rem;">
+              <h4 style="font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.4rem;">
+                🧠 Detected Key Concepts
+              </h4>
+              <div id="pulseKeywordsCloud" class="keyword-cloud-box">
+                <span class="tag-empty">Key concepts detected will populate here...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Accessibility Preset Button -->
+          <div class="glass-card" style="padding: 1rem 1.25rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <h4 style="font-size: 0.92rem; font-weight: 700;">Accessibility Quick-Tuning</h4>
+                <p style="font-size: 0.78rem; color: var(--text-secondary);">High contrast, Dyslexia font, Font scale</p>
+              </div>
+              <button onclick="document.getElementById('settingsModal').classList.add('open');" class="btn btn-secondary btn-sm">
+                Adjust ⚙️
+              </button>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+
+      <!-- ==========================================================================
+           Teacher & Student Real-Time Sync Card (BroadcastChannel API)
+           ========================================================================== -->
+      <div id="sync-section" class="glass-card sync-bar-card">
+        <div style="display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
+          <span style="font-size: 1.25rem;" aria-hidden="true">📡</span>
+          <div>
+            <h4 style="font-size: 1rem; font-weight: 700;">Teacher &amp; Student Multi-Tab Sync</h4>
+            <p style="font-size: 0.82rem; color: var(--text-secondary);">
+              Teacher speaks in Tab 1 (Host) &rarr; Students in Tab 2 receive live synced captions and sound alerts!
+            </p>
+          </div>
+          <span id="syncRoleBadge" class="sync-role-badge single">Standalone Mode</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+          <label for="syncRoleSelector" class="sr-only">Classroom Sync Role</label>
+          <select id="syncRoleSelector" class="select-custom">
+            <option value="single">Standalone Mode</option>
+            <option value="teacher">Teacher View (Broadcaster)</option>
+            <option value="student">Student View (Receiver)</option>
+          </select>
+
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <input type="text" id="roomCodeInput" placeholder="Room Code (e.g. CS-101)" class="select-custom" style="width: 140px; text-transform: uppercase;">
+            <button id="joinRoomCodeBtn" class="btn btn-secondary btn-sm">Join</button>
+          </div>
+
+          <button id="copyInviteLinkBtn" class="btn btn-secondary btn-sm" title="Copy student join URL">
+            🔗 Copy Student Link
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         Post-Class AI Study Kit Section
+         ========================================================================== -->
+    <section id="studykit" class="studykit-section" aria-labelledby="studykit-heading">
+      <div class="studykit-header">
+        <span class="section-tag">AI Learning Synthesis</span>
+        <h2 id="studykit-heading" class="section-title">Post-Class AI Study Kit</h2>
+        <p class="section-subtitle">
+          Turn classroom captions into structured learning materials: an executive summary, interactive 3D flip flashcards, and a self-assessment quiz.
+        </p>
+
+        <div style="margin-top: 1.5rem;">
+          <button id="generateStudyKitBtn" class="btn btn-primary" style="font-size: 1rem; padding: 0.85rem 1.75rem;">
+            ✨ Generate Study Kit from Today's Lecture
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div id="studyKitLoadingState" class="missed-loading hidden">
+        <div class="ai-sparkle-spinner"></div>
+        <p>Analyzing lecture transcript and synthesizing flashcards &amp; quiz...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div id="studyKitEmptyState" class="empty-caption-state" style="margin: 2rem auto;">
+        <p>No study kit generated yet. Record lecture captions or play Demo Mode, then click <strong>"Generate Study Kit"</strong> above!</p>
+      </div>
+
+      <!-- Result Container -->
+      <div id="studyKitResultContainer" class="hidden">
+        <div class="studykit-grid">
+          <!-- Left: Summary & Key Takeaways -->
+          <div class="glass-card">
+            <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem;">
+              <span>📝</span> Executive Lecture Summary
+            </h3>
+            <p id="studyKitSummaryText" style="line-height: 1.6; color: var(--text-primary); margin-bottom: 1.5rem;"></p>
+
+            <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem;">Key Takeaways</h4>
+            <ul id="studyKitKeyPointsList" style="list-style: none; display: flex; flex-direction: column; gap: 0.75rem;"></ul>
+          </div>
+
+          <!-- Right: Interactive 3D Flip Flashcards -->
+          <div class="glass-card">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--accent-purple); display: flex; align-items: center; gap: 0.5rem;">
+                <span>🃏</span> Interactive Flashcards
+              </h3>
+              <span id="flashcardCounter" style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-muted);">Card 1 of 4</span>
+            </div>
+
+            <!-- 3D Flip Card -->
+            <div class="flashcard-3d-scene" tabindex="0" role="button" aria-label="Flip flashcard" id="flashcardWrapper">
+              <div class="flashcard-3d-card" id="flashcardCard">
+                <!-- Front Side -->
+                <div class="card-face front">
+                  <span class="card-prompt-badge">QUESTION (CLICK TO FLIP)</span>
+                  <p class="card-text" id="flashcardFrontText">Loading concept...</p>
+                  <span class="card-flip-hint">↻ Tap to see answer</span>
+                </div>
+                <!-- Back Side -->
+                <div class="card-face back">
+                  <span class="card-prompt-badge" style="color: #a7f3d0;">EXPLANATION &amp; ANSWER</span>
+                  <p class="card-text" id="flashcardBackText">Loading explanation...</p>
+                  <span class="card-flip-hint">↻ Tap to flip back</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Flashcard Nav Controls -->
+            <div class="flashcard-nav-controls">
+              <button id="prevFlashcardBtn" class="btn btn-secondary btn-sm">← Previous Card</button>
+              <button id="nextFlashcardBtn" class="btn btn-secondary btn-sm">Next Card →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5-Question Interactive Quiz -->
+        <div class="glass-card" style="margin-top: 2rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h3 style="font-size: 1.3rem; font-weight: 700; color: var(--accent-amber); display: flex; align-items: center; gap: 0.5rem;">
+                <span>🎯</span> 5-Question Lecture Mastery Quiz
+              </h3>
+              <p style="font-size: 0.88rem; color: var(--text-secondary);">Test your comprehension of the concepts covered in this lecture.</p>
+            </div>
+            <button id="retryQuizBtn" class="btn btn-secondary btn-sm">🔄 Reset Quiz</button>
+          </div>
+
+          <div id="quizQuestionsContainer"></div>
+
+          <!-- Score Banner -->
+          <div id="quizScoreBanner" class="quiz-score-banner hidden">
+            <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.35rem;">Quiz Complete!</h4>
+            <div id="quizScoreValue" style="font-size: 1.75rem; font-weight: 800; color: var(--accent-emerald);"></div>
+            <p id="quizScoreMessage" style="font-size: 0.95rem; margin-top: 0.35rem;"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         Sign Language & Hand Gesture Recognition (MediaPipe Tasks Vision)
+         ========================================================================== -->
+    <section id="sign-beta" class="sign-section" aria-labelledby="sign-heading">
+      <div class="glass-card" style="border-color: rgba(56, 189, 248, 0.35);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 3px 10px; border-radius: var(--radius-full); background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">
+              <span>AI Vision Engine</span>
+              <span>•</span>
+              <span>Basic gesture vocabulary (Beta)</span>
+            </div>
+            <h2 id="sign-heading" style="font-size: 1.8rem; font-weight: 800;">Real-Time Hand Gesture Recognition</h2>
+            <p style="color: var(--text-secondary); max-width: 680px; font-size: 0.95rem; line-height: 1.6; margin-top: 0.4rem;">
+              Enabling hearing-impaired students to answer questions and participate using natural hand gestures. 
+              Powered by <strong>@mediapipe/tasks-vision</strong> with GPU acceleration.
+              <br><span style="color: var(--accent-amber); font-size: 0.85rem;">💡 <strong>Pro-Tip:</strong> Hold <em>Pointing_Up</em> or <em>Open_Palm</em> for 1 second to automatically raise your hand to the teacher!</span>
+            </p>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button id="toggleSignCameraBtn" class="btn btn-primary">
+              📷 Start Gesture Camera
+            </button>
+          </div>
+        </div>
+
+        <!-- Vision Video & 21-Landmark Canvas -->
+        <div class="vision-preview-box">
+          <video id="signVideoElement" class="vision-video" playsinline muted autoplay></video>
+          <canvas id="signCanvasOverlay" class="vision-canvas-overlay"></canvas>
+        </div>
+
+        <!-- Vision Status Bar -->
+        <div style="margin-top: 1rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.88rem; color: var(--text-secondary); flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <strong style="color: var(--text-primary);">Status:</strong> <span id="signDetectionStatus" class="sign-status-text ready">Model standby. Click Start Gesture Camera.</span>
+          </div>
+          <span>Model: official gesture_recognizer.task &bull; 21 Hand Landmarks &bull; GPU/CPU Delegate</span>
+        </div>
+
+        <!-- Large Detected Gesture Box -->
+        <div id="detectedGestureDisplayBox" class="detected-gesture-box" role="status" aria-live="polite">
+          <span style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 700;">RECOGNIZED PHRASE</span>
+          <span id="detectedGestureLabel" class="detected-gesture-label">"Waiting for gesture..."</span>
+          <span id="detectedGestureConfidence" class="detected-gesture-confidence"></span>
+        </div>
+
+        <!-- Basic Gesture Vocabulary Guide & Quick Test Chips -->
+        <div style="margin-top: 1.25rem;">
+          <h4 style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); text-align: center;">
+            Recognized Gesture Vocabulary (700ms Stability + Cooldown):
+          </h4>
+          <div class="beta-vocabulary-tags">
+            <button class="test-gesture-chip" data-gesture="Open_Palm" title="Hold 1s to raise hand">✋ Open_Palm &rarr; "Hello"</button>
+            <button class="test-gesture-chip" data-gesture="Thumb_Up">👍 Thumb_Up &rarr; "Yes / Understood"</button>
+            <button class="test-gesture-chip" data-gesture="Thumb_Down">👎 Thumb_Down &rarr; "No / Not clear"</button>
+            <button class="test-gesture-chip" data-gesture="Closed_Fist">✊ Closed_Fist &rarr; "Stop / Wait"</button>
+            <button class="test-gesture-chip" data-gesture="Pointing_Up" title="Hold 1s to raise hand">☝️ Pointing_Up &rarr; "I have a question"</button>
+            <button class="test-gesture-chip" data-gesture="Victory">✌️ Victory &rarr; "Okay / Peace"</button>
+            <button class="test-gesture-chip" data-gesture="ILoveYou">🤟 ILoveYou &rarr; "Thank you"</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         Features Showcase Section
+         ========================================================================== -->
+    <section id="features" class="features-section" aria-labelledby="features-heading">
+      <div class="section-heading-center">
+        <span class="section-tag">Key Differentiators</span>
+        <h2 id="features-heading" class="section-title">Designed for Real Classroom Accessibility</h2>
+        <p class="section-subtitle">
+          Generic caption apps fail in noisy, fast-paced classrooms. SignAid delivers specialized assistive intelligence.
+        </p>
+      </div>
+
+      <div class="feature-grid-3">
+        <div class="feature-card">
+          <div class="feature-icon-badge">⚡</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">"I Missed That!" One-Tap Recovery</h3>
+          <p style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
+            When instructors speak too quickly, one click isolates the last 45 seconds of speech and generates an ultra-simple explanation with an everyday analogy.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">🚨</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">Acoustic Sound Intelligence</h3>
+          <p style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
+            Web Audio API detects sudden classroom noises (claps, bell chimes, door slams, raised voices) and triggers visual flash alerts and ARIA assertive announcements.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">🔍</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">Smart Keyword Definitions</h3>
+          <p style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
+            Technical STEM terms in the live transcript are highlighted automatically. Tap or click any term for an instant, student-friendly explanation.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">📡</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">Cross-Tab Teacher &amp; Student Sync</h3>
+          <p style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
+            Built on BroadcastChannel API: the teacher broadcasts speech from their podium tab, and students in the classroom receive live synchronized captions in their own tabs.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">⏱️</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">Timeline Rewind &amp; Star Bookmarks</h3>
+          <p style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
+            Never lose track. Scroll back through timestamped lecture segments, star critical exam takeaways, and jump back to exact moments in the stream.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">🌐</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">Hinglish Script Transliteration</h3>
+          <p style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
+            Deaf students who comprehend spoken Hindi or Punjabi can toggle instant Roman phonetic transliteration, removing script-reading barriers.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         Impact: Problem vs Solution Section
+         ========================================================================== -->
+    <section id="impact" class="impact-section" aria-labelledby="impact-heading">
+      <div class="section-heading-center">
+        <span class="section-tag">Inclusive Impact</span>
+        <h2 id="impact-heading" class="section-title">The Classroom Accessibility Divide</h2>
+        <p class="section-subtitle">
+          Over 430 million people worldwide experience disabling hearing loss. In academic lecture halls, traditional methods fall short.
+        </p>
+      </div>
+
+      <div class="impact-comparison-grid">
+        <div class="problem-card">
+          <div style="font-size: 1.8rem; margin-bottom: 0.75rem;" aria-hidden="true">❌</div>
+          <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--accent-rose); margin-bottom: 0.75rem;">The Status Quo Problem</h3>
+          <ul style="padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.6rem; color: var(--text-secondary); font-size: 0.95rem;">
+            <li><strong>Cognitive fatigue:</strong> Lip-reading in large lecture halls is exhausting and captures less than 35% of spoken dialogue.</li>
+            <li><strong>Zero context recovery:</strong> If a student looks down to write notes, they miss crucial technical explanations forever.</li>
+            <li><strong>Sound blindness:</strong> Emergency sirens, door knocks, and teacher applause go unnoticed without visual acoustic cues.</li>
+            <li><strong>Delayed study materials:</strong> Transcripts are rarely provided, leaving deaf students lagging behind peers during exams.</li>
+          </ul>
+        </div>
+
+        <div class="solution-card">
+          <div style="font-size: 1.8rem; margin-bottom: 0.75rem;" aria-hidden="true">✅</div>
+          <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--accent-emerald); margin-bottom: 0.75rem;">The SignAid Solution</h3>
+          <ul style="padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.6rem; color: var(--text-secondary); font-size: 0.95rem;">
+            <li><strong>Real-time zero-latency captions:</strong> Continuous streaming with clear interim feedback and teacher speaking indicators.</li>
+            <li><strong>Instant "I Missed That" simplifications:</strong> On-demand AI breakdowns of the last 45 seconds prevent students from falling behind.</li>
+            <li><strong>Web Audio sensory alerts:</strong> Sudden acoustic spikes flash visually on screen to keep students environmentally aware.</li>
+            <li><strong>Automated Study Kits:</strong> Instant post-lecture flashcards, executive summaries, and comprehension quizzes ready immediately after class.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==========================================================================
+       Floating AI Chatbot (Aura)
+       ========================================================================== -->
+  <button id="chatbotFabTrigger" class="chatbot-fab" title="Open Aura AI Classroom Assistant (C)" aria-label="Open Aura AI Classroom Assistant" aria-haspopup="dialog">
+    <span>✨</span>
+    <span id="chatUnreadBadge" class="chat-unread-badge hidden"></span>
+  </button>
+
+  <div id="chatbotWidgetModal" class="chatbot-widget-modal" role="dialog" aria-labelledby="chatBotName" aria-hidden="true">
+    <div class="chat-header">
+      <div class="chat-bot-info">
+        <div class="chat-avatar">✨</div>
+        <div>
+          <div id="chatBotName" class="chat-name">Aura &bull; SignAid AI</div>
+          <div class="chat-status">&#x25cf; Grounded in Live Transcript</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 0.35rem;">
+        <button id="clearChatHistoryBtn" class="btn-icon" style="width: 32px; height: 32px; font-size: 0.85rem;" title="Clear Chat">🗑️</button>
+        <button id="closeChatbotBtn" class="btn-icon" style="width: 32px; height: 32px; font-size: 0.85rem;" title="Close Chat">&times;</button>
+      </div>
+    </div>
+
+    <!-- Quick Reply Chips -->
+    <div class="chat-chips-scroll" role="toolbar" aria-label="Suggested questions">
+      <button class="chat-quick-chip" data-query="Explain simply">💡 Explain simply</button>
+      <button class="chat-quick-chip" data-query="Summarize last 5 min">📝 Summarize last 5 min</button>
+      <button class="chat-quick-chip" data-query="What did the teacher say about recursion?">❓ What did teacher say?</button>
+      <button class="chat-quick-chip" data-query="How to use this site">ℹ️ How to use this site</button>
+    </div>
+
+    <!-- Chat Messages Scroll -->
+    <div id="chatbotMessagesContainer" class="chat-messages-container" role="log" aria-live="polite"></div>
+
+    <!-- Input Form -->
+    <div class="chat-input-area">
+      <form id="chatbotForm" class="chat-form">
+        <input type="text" id="chatbotInput" class="chat-input" placeholder="Ask Aura about what the teacher said..." autocomplete="off">
+        <button type="submit" class="chat-send-btn" title="Send Question" aria-label="Send">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       "I Missed That" Slide-Over Drawer
+       ========================================================================== -->
+  <div id="missedThatOverlay" class="slideover-overlay"></div>
+  <aside id="missedThatPanel" class="slideover-panel" role="dialog" aria-labelledby="missedPanelTitle" aria-hidden="true">
+    <div class="slideover-header">
+      <div class="slideover-title">
+        <span>⚡</span>
+        <span id="missedPanelTitle">"I Missed That" &bull; Quick Explainer</span>
+      </div>
+      <button id="closeMissedPanelBtn" class="btn-icon" style="width: 34px; height: 34px;" title="Close Panel">&times;</button>
+    </div>
+
+    <div class="slideover-body">
+      <div style="margin-bottom: 0.85rem;">
+        <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary);">Last 45 Seconds of Teacher's Speech</span>
+      </div>
+      <div id="missedSnippetPreview" class="missed-snippet-box">"..."</div>
+
+      <div id="missedThatContent">
+        <!-- AI Explanation rendered dynamically here -->
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==========================================================================
+       Keyword Definition Popover Modal
+       ========================================================================== -->
+  <div id="keywordDefinitionModal" class="modal-backdrop" role="dialog" aria-labelledby="keywordModalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div>
+          <span id="keywordModalCategory" style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-cyan); font-weight: 700;">Concept</span>
+          <h3 id="keywordModalTitle" class="modal-title" style="margin-top: 2px;">Keyword</h3>
+        </div>
+        <button id="closeDefModalBtn" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div>
+          <h5 style="font-size: 0.82rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem;">Simple Explanation</h5>
+          <p id="keywordModalDef" style="font-size: 1.05rem; line-height: 1.5; color: var(--text-primary);"></p>
+        </div>
+
+        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); padding: 0.85rem 1rem; border-radius: var(--radius-md);">
+          <h5 style="font-size: 0.82rem; text-transform: uppercase; color: var(--accent-cyan); margin-bottom: 0.25rem;">Classroom Example</h5>
+          <p id="keywordModalExample" style="font-size: 0.92rem; color: var(--text-secondary);"></p>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+          <button id="keywordAskAiBtn" class="btn btn-primary btn-sm">
+            ✨ Ask Aura AI for more details
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Timeline Rewind & Replay Modal
+       ========================================================================== -->
+  <div id="timelineModal" class="modal-backdrop" role="dialog" aria-labelledby="timelineTitle" aria-hidden="true">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 id="timelineTitle" class="modal-title">⏱️ Lecture Rewind &amp; Replay Timeline</h3>
+        <button id="closeTimelineModalBtn" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1rem;">
+        Review timestamped moments from today's lecture. Star items to bookmark them for exam revision.
+      </p>
+      <div id="timelineEventsContainer" class="timeline-container"></div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Accessibility & Display Settings Modal
+       ========================================================================== -->
+  <div id="settingsModal" class="modal-backdrop" role="dialog" aria-labelledby="settingsModalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="settingsModalTitle" class="modal-title">⚙️ Accessibility &amp; Display Settings</h3>
+        <button onclick="document.getElementById('settingsModal').classList.remove('open');" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <!-- Color Theme -->
+      <div class="setting-row">
+        <div class="setting-info">
+          <h5>Color Theme</h5>
+          <p>Switch between modern dark glass, crisp light, and high-contrast</p>
+        </div>
+        <select id="themeSelect" class="select-custom">
+          <option value="dark">Dark Theme (Default)</option>
+          <option value="light">Light Theme</option>
+          <option value="high-contrast">High Contrast (Yellow / Black)</option>
+        </select>
+      </div>
+
+      <!-- Font Size Slider -->
+      <div class="setting-row">
+        <div class="setting-info">
+          <h5>Caption Font Size</h5>
+          <p>Adjust text scale for classroom legibility (<span id="fontSizeVal">20px</span>)</p>
+        </div>
+        <input type="range" id="fontSizeSlider" min="14" max="32" step="1" value="20" class="slider-input">
+      </div>
+
+      <!-- Line Spacing Slider -->
+      <div class="setting-row">
+        <div class="setting-info">
+          <h5>Caption Line Spacing</h5>
+          <p>Adjust vertical padding between lines (<span id="lineHeightVal">1.6x</span>)</p>
+        </div>
+        <input type="range" id="lineHeightSlider" min="1.2" max="2.4" step="0.1" value="1.6" class="slider-input">
+      </div>
+
+      <!-- Dyslexia Font Toggle -->
+      <div class="setting-row">
+        <div class="setting-info">
+          <h5>Dyslexia-Friendly Font</h5>
+          <p>Enables Lexend / high-legibility specialized typeface</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="dyslexicToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Color-Blind Safe Palette -->
+      <div class="setting-row">
+        <div class="setting-info">
+          <h5>Color-Blind Safe Palette</h5>
+          <p>Optimized contrast ratios for color vision deficiencies</p>
+        </div>
+        <select id="colorBlindSelect" class="select-custom">
+          <option value="none">Standard Palette</option>
+          <option value="protanopia">Protanopia / Red-Weak</option>
+          <option value="deuteranopia">Deuteranopia / Green-Weak</option>
+          <option value="high-distinction">Maximum Distinction</option>
+        </select>
+      </div>
+
+      <!-- Reduced Motion -->
+      <div class="setting-row">
+        <div class="setting-info">
+          <h5>Reduced Motion</h5>
+          <p>Disables animated waveforms, flips, and pulsing effects</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="reducedMotionToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Auto Scroll Captions -->
+      <div class="setting-row">
+        <div class="setting-info">
+          <h5>Auto-Scroll Stream</h5>
+          <p>Automatically keeps newest captions in view</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autoScrollToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div style="margin-top: 1.5rem; display: flex; justify-content: space-between;">
+        <button id="resetSettingsBtn" class="btn btn-secondary btn-sm">Reset to Defaults</button>
+        <button onclick="document.getElementById('settingsModal').classList.remove('open');" class="btn btn-primary btn-sm">Save &amp; Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Keyboard Shortcuts Help Modal
+       ========================================================================== -->
+  <div id="shortcutsModal" class="modal-backdrop" role="dialog" aria-labelledby="shortcutsTitle" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="shortcutsTitle" class="modal-title">⌨️ Accessible Keyboard Shortcuts</h3>
+        <button id="closeShortcutsModalBtn" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.92rem;">
+        <div class="setting-row">
+          <span>Toggle Live Microphone</span>
+          <kbd style="background: var(--bg-tertiary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); border: 1px solid var(--border-color);">Space</kbd>
+        </div>
+        <div class="setting-row">
+          <span>"I Missed That" Quick Explainer</span>
+          <kbd style="background: var(--bg-tertiary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); border: 1px solid var(--border-color);">M</kbd>
+        </div>
+        <div class="setting-row">
+          <span>Open Aura AI Chatbot</span>
+          <kbd style="background: var(--bg-tertiary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); border: 1px solid var(--border-color);">C</kbd>
+        </div>
+        <div class="setting-row">
+          <span>Open Timeline Rewind</span>
+          <kbd style="background: var(--bg-tertiary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); border: 1px solid var(--border-color);">T</kbd>
+        </div>
+        <div class="setting-row">
+          <span>Close Open Modals &amp; Drawers</span>
+          <kbd style="background: var(--bg-tertiary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); border: 1px solid var(--border-color);">Esc</kbd>
+        </div>
+        <div class="setting-row">
+          <span>Open Shortcuts Help</span>
+          <kbd style="background: var(--bg-tertiary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); border: 1px solid var(--border-color);">?</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Footer
+       ========================================================================== -->
+  <footer class="footer" role="contentinfo">
+    <div class="footer-container">
+      <div>
+        <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem;">
+          <span style="font-size: 1.3rem;">⚡</span>
+          <span style="font-weight: 800; font-size: 1.15rem;">SignAid AI</span>
+        </div>
+        <p class="footer-copy">
+          Built for the Hackathon Problem: <em>"Accessibility assistant providing real-time captions for hearing-impaired students."</em>
+        </p>
+      </div>
+
+      <div style="text-align: right;">
+        <p class="footer-copy">Crafted with care by <span class="team-credits">[Team HackerWrath]</span></p>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">
+          Pure Vanilla Web Tech &bull; Chrome Web Speech &bull; Web Audio API &bull; Google Gemini AI
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==========================================================================
+       Class Group Chat Side Panel (Separate from AI Assistant)
+       ========================================================================== -->
+  <div id="classChatOverlay" class="class-chat-overlay"></div>
+  <aside id="classChatPanel" class="class-chat-panel" role="dialog" aria-labelledby="classChatTitle" aria-hidden="true">
+    <div class="class-chat-header">
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span style="font-size: 1.25rem;">💬</span>
+        <div>
+          <h3 id="classChatTitle" style="font-size: 1.1rem; font-weight: 800; color: #fff;">Class Group Chat</h3>
+          <span style="font-size: 0.75rem; color: var(--accent-cyan);">&#x25cf; Live Classroom Room</span>
+        </div>
+      </div>
+      <button id="closeClassChatBtn" class="btn-icon" style="width: 32px; height: 32px;" title="Close Chat">&times;</button>
+    </div>
+
+    <!-- Messages List -->
+    <div id="classChatMessagesContainer" class="class-chat-messages" role="log" aria-live="polite">
+      <div style="text-align: center; padding: 1.5rem 0; color: var(--text-muted); font-size: 0.85rem;">
+        👋 Welcome to the class discussion! Ask questions or share thoughts with your instructor and peers.
+      </div>
+    </div>
+
+    <!-- Chat Input Form with 300 char counter -->
+    <div class="chat-input-area" style="background: var(--bg-tertiary);">
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 4px;">
+        <span id="classChatCharCounter" style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">0/300</span>
+      </div>
+      <form id="classChatForm" class="chat-form">
+        <input type="text" id="classChatInput" class="chat-input" placeholder="Type a message to class (max 300 chars)..." maxlength="300" autocomplete="off">
+        <button type="submit" class="chat-send-btn" title="Send to Class" aria-label="Send message">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- ==========================================================================
+       Live Understanding Poll Modal
+       ========================================================================== -->
+  <div id="livePollModal" class="modal-backdrop" role="dialog" aria-labelledby="livePollHeading" aria-hidden="true">
+    <div class="modal-dialog" style="max-width: 500px;">
+      <div class="modal-header">
+        <div>
+          <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-cyan); font-weight: 700;">Live Comprehension Check</span>
+          <h3 id="livePollHeading" class="modal-title" style="margin-top: 2px;">📊 Quick Class Check-In</h3>
+        </div>
+        <button id="closePollModalBtn" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <div style="margin-bottom: 1.25rem;">
+        <h4 id="livePollQuestion" style="font-size: 1.15rem; font-weight: 700; color: #fff; line-height: 1.4;">
+          Do you understand the concept just covered?
+        </h4>
+      </div>
+
+      <!-- Voting Options (For Students) -->
+      <div id="livePollOptions"></div>
+
+      <!-- Live Bar Chart Results (For Teacher & After Voting) -->
+      <div id="livePollResultsChart" class="hidden"></div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Scripts Loading Order
+       ========================================================================== -->
+  <script src="config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/classroom-manager.js"></script>
+  <script src="js/transliterate.js"></script>
+  <script src="js/demo-data.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/sound-alerts.js"></script>
+  <script src="js/captions.js"></script>
+  <script src="js/missed-that.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/class-chat.js"></script>
+  <script src="js/study-kit.js"></script>
+  <script src="js/chatbot.js"></script>
+  <script src="js/demo-mode.js"></script>
+  <script src="js/sign-vision.js"></script>
+  <script src="js/video-meeting.js"></script>
+  <script src="script.js"></script>
+
+  <script>
+    // Bind settings modal opener button
+    document.getElementById('openSettingsModalBtn')?.addEventListener('click', () => {
+      document.getElementById('settingsModal')?.classList.add('open');
+    });
+  </script>
+</body>
+</html>
